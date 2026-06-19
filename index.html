@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>따릉길 - 따릉이 길찾기</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+:root{--green:#2ECC71;--green-dark:#1A8A47;--green-light:#E8FAF1;--navy:#1A2D4F;--gray-100:#F5F6F8;--gray-200:#E8EAED;--gray-400:#9AA0AB;--gray-700:#3D4350;--orange:#FF6B35;}
+html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:#fff;overflow:hidden;}
+#app{display:flex;flex-direction:column;height:100vh;max-width:430px;margin:0 auto;position:relative;background:white;box-shadow:0 0 40px rgba(0,0,0,0.15);}
+.header{background:var(--navy);padding:48px 20px 16px;flex-shrink:0;z-index:100;position:relative;}
+.header-top{display:flex;align-items:center;margin-bottom:14px;}
+.logo{display:flex;align-items:center;gap:8px;}
+.logo-icon{width:34px;height:34px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.logo-title{color:white;font-size:20px;font-weight:900;letter-spacing:-1px;}
+.logo-title span{color:var(--green);}
+.logo-sub{color:rgba(255,255,255,0.4);font-size:10px;letter-spacing:2px;}
+.search-wrap{display:flex;flex-direction:column;gap:6px;}
+.input-group{position:relative;}
+.input-row{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:11px 14px;transition:border-color 0.2s;}
+.input-row:focus-within{border-color:rgba(255,255,255,0.3);}
+.input-row input{background:none;border:none;outline:none;color:white;font-size:14px;font-family:inherit;flex:1;min-width:0;}
+.input-row input::placeholder{color:rgba(255,255,255,0.35);}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.dot-start{background:var(--green);}
+.dot-end{background:var(--orange);}
+.clear-btn{background:none;border:none;color:rgba(255,255,255,0.4);font-size:14px;cursor:pointer;padding:0 2px;display:none;}
+.divider-line{width:1px;height:10px;background:rgba(255,255,255,0.15);margin-left:14px;}
+.autocomplete-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:white;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:999;overflow:hidden;max-height:240px;overflow-y:auto;display:none;}
+.autocomplete-list.show{display:block;}
+.autocomplete-item{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--gray-100);transition:background 0.1s;}
+.autocomplete-item:last-child{border-bottom:none;}
+.autocomplete-item:hover{background:var(--gray-100);}
+.ac-icon{font-size:16px;flex-shrink:0;}
+.ac-info{flex:1;min-width:0;}
+.ac-name{font-size:13px;font-weight:700;color:var(--gray-700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ac-addr{font-size:11px;color:var(--gray-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.search-btn{margin-top:8px;border:none;border-radius:12px;padding:12px;width:100%;color:white;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--green);transition:all 0.2s;}
+.search-btn:disabled{background:var(--gray-400);cursor:not-allowed;}
+.search-btn.loading{background:#0f6e35;cursor:not-allowed;}
+.btn-spinner{display:none;width:18px;height:18px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;}
+.search-btn.loading .btn-spinner{display:block;}
+.search-btn.loading .btn-icon{display:none;}
+.loading-steps{display:none;margin-top:8px;background:rgba(255,255,255,0.08);border-radius:10px;padding:10px 14px;}
+.loading-steps.show{display:flex;align-items:center;gap:10px;}
+.step-dots{display:flex;gap:4px;}
+.step-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.3);animation:dotPulse 1.2s infinite;}
+.step-dot:nth-child(2){animation-delay:0.2s;}
+.step-dot:nth-child(3){animation-delay:0.4s;}
+@keyframes dotPulse{0%,100%{background:rgba(255,255,255,0.3)}50%{background:var(--green)}}
+.step-text{color:rgba(255,255,255,0.8);font-size:12px;font-weight:500;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#map{flex:1;position:relative;min-height:0;}
+#leaflet-map{width:100%;height:100%;}
+.map-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;z-index:5;}
+.hint-icon{font-size:48px;margin-bottom:8px;}
+.hint-text{color:var(--gray-400);font-size:13px;font-weight:500;}
+.result-panel{background:white;border-radius:20px 20px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,0.1);flex-shrink:0;max-height:55vh;overflow-y:auto;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1);display:none;}
+.result-panel.open{display:block;transform:translateY(0);}
+.panel-handle{width:36px;height:4px;background:var(--gray-200);border-radius:2px;margin:12px auto 0;}
+.panel-inner{padding:16px 20px 32px;}
+.total-section{padding-bottom:14px;border-bottom:1px solid var(--gray-200);margin-bottom:16px;}
+.total-row{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;}
+.time-big{font-size:38px;font-weight:900;color:var(--navy);letter-spacing:-1.5px;}
+.time-unit{font-size:16px;font-weight:500;color:var(--gray-400);}
+.tags{display:flex;gap:6px;flex-wrap:wrap;}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;}
+.tag-green{background:var(--green-light);color:var(--green-dark);}
+.tag-gray{background:var(--gray-100);color:var(--gray-700);}
+.avail-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.steps{display:flex;flex-direction:column;}
+.step{display:flex;gap:12px;}
+.step-left{display:flex;flex-direction:column;align-items:center;width:30px;flex-shrink:0;}
+.step-icon{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.icon-walk{background:var(--gray-100);}
+.icon-bike{background:var(--green-light);}
+.step-line{width:2px;flex:1;min-height:12px;margin:3px 0;}
+.line-walk{background:var(--gray-200);}
+.line-bike{background:var(--green);}
+.step-right{flex:1;padding-bottom:18px;}
+.step-label{font-size:13px;font-weight:700;color:var(--gray-700);margin-bottom:2px;}
+.step-desc{font-size:12px;color:var(--gray-400);line-height:1.5;}
+.step-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;margin-top:5px;padding:3px 8px;border-radius:6px;}
+.badge-gray{background:var(--gray-100);color:var(--gray-700);}
+.badge-green{background:var(--green-light);color:var(--green-dark);}
+.go-btn{margin-top:4px;background:var(--green);color:white;border:none;border-radius:14px;padding:15px;width:100%;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(46,204,113,0.3);}
+.toast{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);background:var(--navy);color:white;font-size:13px;padding:10px 18px;border-radius:20px;white-space:nowrap;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="header-top">
+      <div class="logo">
+        <div class="logo-icon">&#128690;</div>
+        <div>
+          <div class="logo-title">따<span>릉</span>길</div>
+          <div class="logo-sub">DDAREUNG-GIL</div>
+        </div>
+      </div>
+    </div>
+    <div class="search-wrap">
+      <div class="input-group">
+        <div class="input-row">
+          <div class="dot dot-start"></div>
+          <input id="input-start" type="text" placeholder="출발지 입력" autocomplete="off"/>
+          <button class="clear-btn" id="clear-start">&#x2715;</button>
+        </div>
+        <div class="autocomplete-list" id="ac-start"></div>
+      </div>
+      <div class="divider-line"></div>
+      <div class="input-group">
+        <div class="input-row">
+          <div class="dot dot-end"></div>
+          <input id="input-end" type="text" placeholder="도착지 입력" autocomplete="off"/>
+          <button class="clear-btn" id="clear-end">&#x2715;</button>
+        </div>
+        <div class="autocomplete-list" id="ac-end"></div>
+      </div>
+      <button class="search-btn" id="search-btn" disabled>
+        <span class="btn-spinner"></span>
+        <span class="btn-icon">&#128690;</span>
+        <span class="btn-text">경로 찾기</span>
+      </button>
+      <div class="loading-steps" id="loading-steps">
+        <div class="step-dots"><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+        <span class="step-text" id="step-text">경로 탐색 중...</span>
+      </div>
+    </div>
+  </div>
+  <div id="map">
+    <div id="leaflet-map"></div>
+    <div class="map-hint" id="map-hint">
+      <div class="hint-icon">&#128506;</div>
+      <div class="hint-text">출발지와 도착지를 입력하세요</div>
+    </div>
+  </div>
+  <div class="result-panel" id="result-panel">
+    <div class="panel-handle"></div>
+    <div class="panel-inner" id="panel-inner"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+<script>
+const map=L.map('leaflet-map').setView([37.5665,126.9780],13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+let markers=[],polylines=[],selectedStart=null,selectedEnd=null,stationDataMode='live';
+const inputStart=document.getElementById('input-start');
+const inputEnd=document.getElementById('input-end');
+const searchBtn=document.getElementById('search-btn');
+const acStart=document.getElementById('ac-start');
+const acEnd=document.getElementById('ac-end');
+
+function checkInputs(){searchBtn.disabled=!(selectedStart&&selectedEnd);}
+
+function escapeHTML(value){
+  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+async function searchPlaces(keyword){
+  if(!keyword.trim())return [];
+  try{
+    const url='/.netlify/functions/places?query='+encodeURIComponent(keyword);
+    const res=await fetch(url);
+    if(!res.ok)return [];
+    const data=await res.json();
+    return Array.isArray(data)?data:[];
+  }catch{
+    return [];
+  }
+}
+
+function renderAC(list,places,inputEl,setter){
+  if(!places.length){list.classList.remove('show');return;}
+  list.innerHTML=places.map((p,i)=>
+    '<div class="autocomplete-item" data-idx="'+i+'">'+
+    '<span class="ac-icon">&#128205;</span>'+
+    '<div class="ac-info">'+
+    '<div class="ac-name">'+escapeHTML(p.place_name)+'</div>'+
+    '<div class="ac-addr">'+escapeHTML(p.road_address_name||p.address_name||'')+'</div>'+
+    '</div></div>'
+  ).join('');
+  list.classList.add('show');
+  list.querySelectorAll('.autocomplete-item').forEach(item=>{
+    item.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      const p=places[parseInt(item.dataset.idx)];
+      inputEl.value=p.place_name;
+      setter({lat:parseFloat(p.y),lng:parseFloat(p.x),name:p.place_name});
+      list.classList.remove('show');
+      inputEl.closest('.input-group').querySelector('.clear-btn').style.display='block';
+      checkInputs();
+    });
+  });
+}
+
+function setupInput(inputEl,acList,setter){
+  let debounceTimer=null;
+  let requestSeq=0;
+  inputEl.addEventListener('input',()=>{
+    const currentSeq=++requestSeq;
+    setter(null);checkInputs();
+    const val=inputEl.value.trim();
+    inputEl.closest('.input-group').querySelector('.clear-btn').style.display=val?'block':'none';
+    clearTimeout(debounceTimer);
+    if(!val){acList.classList.remove('show');return;}
+    debounceTimer=setTimeout(async()=>{
+      const places=await searchPlaces(val);
+      if(currentSeq===requestSeq&&inputEl.value.trim()===val){
+        renderAC(acList,places,inputEl,setter);
+      }
+    },300);
+  });
+  inputEl.addEventListener('blur',()=>setTimeout(()=>acList.classList.remove('show'),150));
+  inputEl.addEventListener('focus',()=>{
+    const val=inputEl.value.trim();
+    if(val) searchPlaces(val).then(places=>renderAC(acList,places,inputEl,setter));
+  });
+}
+
+setupInput(inputStart,acStart,v=>{selectedStart=v;});
+setupInput(inputEnd,acEnd,v=>{selectedEnd=v;});
+
+document.getElementById('clear-start').onclick=()=>{inputStart.value='';selectedStart=null;acStart.classList.remove('show');document.getElementById('clear-start').style.display='none';checkInputs();};
+document.getElementById('clear-end').onclick=()=>{inputEnd.value='';selectedEnd=null;acEnd.classList.remove('show');document.getElementById('clear-end').style.display='none';checkInputs();};
+searchBtn.onclick=doSearch;
+
+function setLoading(on,msg){
+  if(on){searchBtn.classList.add('loading');searchBtn.disabled=true;document.getElementById('loading-steps').classList.add('show');if(msg)document.getElementById('step-text').textContent=msg;}
+  else{searchBtn.classList.remove('loading');document.getElementById('loading-steps').classList.remove('show');checkInputs();}
+}
+
+async function fetchBikeStations(){
+  stationDataMode='live';
+  try{
+    const res=await fetch('/.netlify/functions/bikes',{signal:AbortSignal.timeout(8000)});
+    if(!res.ok)throw new Error();
+    const data=await res.json();
+    if(Array.isArray(data)&&data.length>0)return data;
+    throw new Error();
+  }catch{
+    stationDataMode='sample';
+    showToast('실시간 따릉이 정보를 불러오지 못해 샘플 데이터로 계산해요');
+    return getSample();
+  }
+}
+
+function getSample(){
+  return [
+    {stationName:'망원역 1번출구 앞',stationLatitude:'37.5558',stationLongitude:'126.9107',parkingBikeTotCnt:'7'},
+    {stationName:'합정역 5번출구 앞',stationLatitude:'37.5497',stationLongitude:'126.9143',parkingBikeTotCnt:'4'},
+    {stationName:'홍대입구역 9번출구 앞',stationLatitude:'37.5576',stationLongitude:'126.9249',parkingBikeTotCnt:'12'},
+    {stationName:'상수역 앞',stationLatitude:'37.5478',stationLongitude:'126.9228',parkingBikeTotCnt:'6'},
+    {stationName:'신촌역 앞',stationLatitude:'37.5551',stationLongitude:'126.9368',parkingBikeTotCnt:'5'},
+    {stationName:'광화문역 2번출구 앞',stationLatitude:'37.5715',stationLongitude:'126.9769',parkingBikeTotCnt:'5'},
+    {stationName:'시청역 앞',stationLatitude:'37.5656',stationLongitude:'126.9769',parkingBikeTotCnt:'8'},
+    {stationName:'서울역 앞',stationLatitude:'37.5546',stationLongitude:'126.9706',parkingBikeTotCnt:'9'},
+    {stationName:'이태원역 앞',stationLatitude:'37.5345',stationLongitude:'126.9946',parkingBikeTotCnt:'2'},
+    {stationName:'여의도공원 앞',stationLatitude:'37.5285',stationLongitude:'126.9241',parkingBikeTotCnt:'10'},
+    {stationName:'여의나루역 앞',stationLatitude:'37.5280',stationLongitude:'126.9329',parkingBikeTotCnt:'11'},
+    {stationName:'강남역 앞',stationLatitude:'37.4979',stationLongitude:'127.0276',parkingBikeTotCnt:'6'},
+    {stationName:'선릉역 앞',stationLatitude:'37.5047',stationLongitude:'127.0490',parkingBikeTotCnt:'5'},
+    {stationName:'역삼역 앞',stationLatitude:'37.5007',stationLongitude:'127.0365',parkingBikeTotCnt:'7'},
+    {stationName:'삼성역 앞',stationLatitude:'37.5088',stationLongitude:'127.0630',parkingBikeTotCnt:'4'},
+    {stationName:'잠실역 앞',stationLatitude:'37.5133',stationLongitude:'127.1001',parkingBikeTotCnt:'8'},
+    {stationName:'왕십리역 앞',stationLatitude:'37.5613',stationLongitude:'127.0374',parkingBikeTotCnt:'6'},
+    {stationName:'건대입구역 앞',stationLatitude:'37.5403',stationLongitude:'127.0694',parkingBikeTotCnt:'7'},
+    {stationName:'영등포역 앞',stationLatitude:'37.5159',stationLongitude:'126.9070',parkingBikeTotCnt:'6'},
+    {stationName:'당산역 앞',stationLatitude:'37.5340',stationLongitude:'126.9012',parkingBikeTotCnt:'7'},
+    {stationName:'사당역 앞',stationLatitude:'37.4764',stationLongitude:'126.9814',parkingBikeTotCnt:'7'},
+    {stationName:'반포한강공원',stationLatitude:'37.5099',stationLongitude:'126.9947',parkingBikeTotCnt:'15'},
+    {stationName:'뚝섬한강공원',stationLatitude:'37.5302',stationLongitude:'127.0655',parkingBikeTotCnt:'12'},
+    {stationName:'망원한강공원',stationLatitude:'37.5522',stationLongitude:'126.8997',parkingBikeTotCnt:'10'},
+    {stationName:'노원역 앞',stationLatitude:'37.6553',stationLongitude:'127.0564',parkingBikeTotCnt:'6'},
+    {stationName:'청량리역 앞',stationLatitude:'37.5797',stationLongitude:'127.0472',parkingBikeTotCnt:'7'},
+    {stationName:'연신내역 앞',stationLatitude:'37.6191',stationLongitude:'126.9208',parkingBikeTotCnt:'6'},
+    {stationName:'노량진역 앞',stationLatitude:'37.5136',stationLongitude:'126.9424',parkingBikeTotCnt:'5'},
+    {stationName:'교대역 앞',stationLatitude:'37.4930',stationLongitude:'127.0139',parkingBikeTotCnt:'5'},
+    {stationName:'경복궁역 앞',stationLatitude:'37.5759',stationLongitude:'126.9769',parkingBikeTotCnt:'7'},
+  ];
+}
+
+function haversine(a,b,c,d){
+  const R=6371000,dL=(c-a)*Math.PI/180,dN=(d-b)*Math.PI/180;
+  const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dN/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+function nearestCandidates(coord,stations,needAvail,n){
+  const withDist=[];
+  for(const s of stations){
+    const la=parseFloat(s.stationLatitude),lo=parseFloat(s.stationLongitude);
+    if(!la||!lo)continue;
+    if(needAvail&&parseInt(s.parkingBikeTotCnt)===0)continue;
+    const d=haversine(coord.lat,coord.lng,la,lo);
+    withDist.push({...s,lat:la,lng:lo,straightDist:d});
+  }
+  withDist.sort((a,b)=>a.straightDist-b.straightDist);
+  return withDist.slice(0,n);
+}
+
+// OSRM 도보 경로로 실제 거리/시간 계산
+async function osrmWalkRoute(lat1,lng1,lat2,lng2){
+  try{
+    const url=`https://router.project-osrm.org/route/v1/foot/${lng1},${lat1};${lng2},${lat2}?overview=false`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(5000)});
+    const data=await res.json();
+    if(data.code==='Ok'&&data.routes&&data.routes[0]){
+      return {dist:data.routes[0].distance,duration:data.routes[0].duration};
+    }
+  }catch{}
+  return null;
+}
+
+// OSRM 자전거 경로로 실제 거리/시간 계산
+async function osrmBikeRoute(lat1,lng1,lat2,lng2){
+  try{
+    const url=`https://router.project-osrm.org/route/v1/cycling/${lng1},${lat1};${lng2},${lat2}?overview=false`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(5000)});
+    const data=await res.json();
+    if(data.code==='Ok'&&data.routes&&data.routes[0]){
+      return {dist:data.routes[0].distance,duration:data.routes[0].duration};
+    }
+  }catch{}
+  return null;
+}
+
+// 후보들 중 실제 도보거리가 가장 짧은 정류소 찾기
+async function findBestStationByWalk(coord,candidates){
+  const results=await Promise.all(candidates.map(async(c)=>{
+    const r=await osrmWalkRoute(coord.lat,coord.lng,c.lat,c.lng);
+    return {...c,walkDist:r?r.dist:c.straightDist*1.4,walkDuration:r?r.duration:null};
+  }));
+  results.sort((a,b)=>a.walkDist-b.walkDist);
+  return results[0];
+}
+
+async function calcRoute(s,e,ss,es){
+  // 출발지→정류소(도보, 이미 계산됨), 정류소→정류소(자전거), 정류소→도착(도보)
+  const d1=ss.walkDist,t1raw=ss.walkDuration;
+  const bikeRoute=await osrmBikeRoute(ss.lat,ss.lng,es.lat,es.lng);
+  const d2=bikeRoute?bikeRoute.dist:haversine(ss.lat,ss.lng,es.lat,es.lng)*1.3;
+  const t2raw=bikeRoute?bikeRoute.duration:null;
+  const d3=es.walkDist,t3raw=es.walkDuration;
+
+  const t1=t1raw?Math.ceil(t1raw/60):Math.ceil(d1/67);
+  const t2=t2raw?Math.ceil(t2raw/60):Math.ceil(d2/200);
+  const t3=t3raw?Math.ceil(t3raw/60):Math.ceil(d3/67);
+
+  return{totalTime:t1+t2+t3,totalDist:Math.round((d1+d2+d3)/100)/10,walk1:{dist:Math.round(d1),time:t1},bike:{dist:Math.round(d2),time:t2},walk2:{dist:Math.round(d3),time:t3}};
+}
+
+async function fetchRouteGeometry(lat1,lng1,lat2,lng2,profile){
+  try{
+    const url=`https://router.project-osrm.org/route/v1/${profile}/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(5000)});
+    const data=await res.json();
+    if(data.code==='Ok'&&data.routes&&data.routes[0]){
+      return data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+    }
+  }catch{}
+  return null;
+}
+
+async function drawMap(s,e,ss,es){
+  markers.forEach(m=>map.removeLayer(m));polylines.forEach(p=>map.removeLayer(p));markers=[];polylines=[];
+  const ic=(color,label)=>L.divIcon({html:'<div style="background:'+color+';color:white;font-size:11px;font-weight:700;padding:4px 8px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);font-family:sans-serif;">'+label+'</div>',className:'',iconAnchor:[0,28]});
+
+  const [path1,path2,path3]=await Promise.all([
+    fetchRouteGeometry(s.lat,s.lng,ss.lat,ss.lng,'foot'),
+    fetchRouteGeometry(ss.lat,ss.lng,es.lat,es.lng,'cycling'),
+    fetchRouteGeometry(es.lat,es.lng,e.lat,e.lng,'foot'),
+  ]);
+
+  polylines=[
+    L.polyline(path1||[[s.lat,s.lng],[ss.lat,ss.lng]],{color:'#9AA0AB',weight:4,dashArray:'8,6'}).addTo(map),
+    L.polyline(path2||[[ss.lat,ss.lng],[es.lat,es.lng]],{color:'#2ECC71',weight:5}).addTo(map),
+    L.polyline(path3||[[es.lat,es.lng],[e.lat,e.lng]],{color:'#9AA0AB',weight:4,dashArray:'8,6'}).addTo(map),
+  ];
+  markers=[
+    L.marker([s.lat,s.lng],{icon:ic('#2ECC71','출발')}).addTo(map),
+    L.marker([ss.lat,ss.lng],{icon:ic('#1A2D4F','🚲')}).addTo(map),
+    L.marker([es.lat,es.lng],{icon:ic('#1A2D4F','🚲')}).addTo(map),
+    L.marker([e.lat,e.lng],{icon:ic('#FF6B35','도착')}).addTo(map),
+  ];
+  map.fitBounds([[s.lat,s.lng],[ss.lat,ss.lng],[es.lat,es.lng],[e.lat,e.lng]],{padding:[40,40]});
+  document.getElementById('map-hint').style.display='none';
+}
+
+async function doSearch(){
+  if(!selectedStart||!selectedEnd)return;
+  setLoading(true,'🚲 따릉이 정류소 불러오는 중...');
+  hideResult();
+  try{
+    const stations=await fetchBikeStations();
+
+    setLoading(true,'🚶 실제 도보거리 계산 중...');
+    const startCandidates=nearestCandidates(selectedStart,stations,true,5);
+    const endCandidates=nearestCandidates(selectedEnd,stations,false,5);
+    if(!startCandidates.length){showToast('근처에 이용 가능한 따릉이 정류소가 없어요');return;}
+    if(!endCandidates.length){showToast('도착지 근처에 따릉이 정류소가 없어요');return;}
+
+    const [ss,es]=await Promise.all([
+      findBestStationByWalk(selectedStart,startCandidates),
+      findBestStationByWalk(selectedEnd,endCandidates)
+    ]);
+
+    setLoading(true,'🗺️ 자전거 경로 계산 중...');
+    const r=await calcRoute(selectedStart,selectedEnd,ss,es);
+    await drawMap(selectedStart,selectedEnd,ss,es);
+    showResult(r,selectedStart.name,selectedEnd.name,ss,es);
+  }catch(e){console.error(e);showToast('경로를 찾는 중 오류가 발생했어요');}
+  finally{setLoading(false);}
+}
+
+function showResult(r,sn,en,ss,es){
+  const bc=parseInt(ss.parkingBikeTotCnt)||0;
+  const safeSn=escapeHTML(sn);
+  const safeEn=escapeHTML(en);
+  const safeStartStation=escapeHTML(ss.stationName);
+  const safeEndStation=escapeHTML(es.stationName);
+  const dataModeTag=stationDataMode==='sample'?'<span class="tag tag-gray">샘플 데이터</span>':'';
+  document.getElementById('panel-inner').innerHTML=`
+    <div class="total-section">
+      <div class="total-row"><span class="time-big">${r.totalTime}</span><span class="time-unit">분</span></div>
+      <div class="tags"><span class="tag tag-green">🚲 총 ${r.totalDist}km</span><span class="tag tag-gray">도보 ${r.walk1.time+r.walk2.time}분 포함</span>${dataModeTag}</div>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-left"><div class="step-icon icon-walk">🚶</div><div class="step-line line-walk"></div></div>
+        <div class="step-right"><div class="step-label">${safeSn} → ${safeStartStation}</div><div class="step-desc">도보 ${r.walk1.dist}m</div><span class="step-badge badge-gray">⏱ ${r.walk1.time}분</span></div>
+      </div>
+      <div class="step">
+        <div class="step-left"><div class="step-icon icon-bike">🚲</div><div class="step-line line-bike"></div></div>
+        <div class="step-right"><div class="step-label">${safeStartStation} → ${safeEndStation}</div><div class="step-desc">따릉이 ${r.bike.dist}m</div><div style="display:flex;gap:6px;margin-top:5px;"><span class="tag tag-green"><span class="avail-dot"></span>자전거 ${bc}대 대여 가능</span></div><span class="step-badge badge-green">⏱ ${r.bike.time}분</span></div>
+      </div>
+      <div class="step">
+        <div class="step-left"><div class="step-icon icon-walk">🚶</div></div>
+        <div class="step-right" style="padding-bottom:0"><div class="step-label">${safeEndStation} → ${safeEn}</div><div class="step-desc">도보 ${r.walk2.dist}m</div><span class="step-badge badge-gray">⏱ ${r.walk2.time}분</span></div>
+      </div>
+    </div>
+    <button class="go-btn" onclick="showToast('길안내 기능은 준비 중이에요 🚲')">🚲 길안내 시작</button>
+  `;
+  const panel=document.getElementById('result-panel');
+  panel.style.display='block';
+  setTimeout(()=>panel.classList.add('open'),10);
+}
+
+function hideResult(){const p=document.getElementById('result-panel');p.classList.remove('open');setTimeout(()=>{p.style.display='none';},350);}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+</script>
+</body>
+</html>
